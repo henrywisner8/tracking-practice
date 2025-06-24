@@ -66,6 +66,27 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+app.get('/api/chat-logs/search', async (req, res) => {
+  const { q } = req.query;
+  if (!q) {
+    return res.status(400).json({ error: 'Missing search query' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT * FROM chat_logs
+       WHERE user_message ILIKE $1 OR assistant_reply ILIKE $1
+       ORDER BY created_at DESC`,
+      [`%${q}%`]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Error querying chat logs:', err);
+    res.status(500).json({ error: 'Database query failed' });
+  }
+});
+
+
 // Route: Retrieve order by ID
 app.get('/api/orders/:orderId', async (req, res) => {
   const { orderId } = req.params;
