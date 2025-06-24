@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Embedded Chatbot</title>
+  <script>
+    async function sendMessage() {
+      const input = document.getElementById('input');
+      const chatbox = document.getElementById('chatbox');
+
+      const res = await fetch('https://tracking-practice-production.up.railway.app/api/chat', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ message: input.value, threadId: localStorage.threadId })
+});
+
+      
+      const data = await res.json();
+      localStorage.threadId = data.threadId;
+
+      chatbox.innerHTML += `<div><strong>You:</strong> ${input.value}</div>`;
+      chatbox.innerHTML += `<div><strong>Assistant:</strong> ${data.response}</div>`;
+      input.value = '';
+    }
+  </script>
+</head>
+<body>
+  <h2>Order Tracking Chatbot</h2>
+  <div id="chatbox"></div>
+  <input type="text" id="input" placeholder="Enter your message...">
+  <button onclick="sendMessage()">Send</button>
+</body>
+</html>
