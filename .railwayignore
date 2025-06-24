@@ -1,0 +1,19 @@
+# Ignore Git repo
+.git
+.gitignore
+
+# Ignore environment config
+.env
+
+# Node modules (if present)
+node_modules/
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+*.log
+
+# Ignore large/irrelevant tools or folders
+git-filter-repo/
+C:/Users/henry/AppData/*
+C:/Users/henry/AppData/Local/*
