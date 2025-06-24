@@ -7,7 +7,7 @@ const app = express();
 
 // ✅ Allow only your Netlify frontend to access this API
 app.use(cors({
-  origin: 'https://cerulean-jelly-b6b2ab.netlify.app'  // Replace with your actual Netlify domain if it changes
+  origin: '*'  // Replace with your actual Netlify domain if it changes
 }));
 
 app.use(express.json());
