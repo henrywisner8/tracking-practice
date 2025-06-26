@@ -2,13 +2,14 @@ const express = require('express');
 const cors = require('cors');
 const { OpenAI } = require('openai');
 const { Pool } = require('pg');
+const fetch = require('node-fetch');
 require('dotenv').config();
 
 const app = express();
 
-// ✅ CORS: Allow your Netlify frontend
+// ✅ CORS: Allow only your Netlify frontend
 app.use(cors({
-  origin: 'https://cerulean-jelly-b6b2ab.netlify.app'  // Update if your Netlify domain changes
+  origin: 'https://cerulean-jelly-b6b2ab.netlify.app' // Update if your Netlify domain changes
 }));
 
 app.use(express.json());
@@ -23,11 +24,56 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-// Route: Handle chatbot interaction + log chat
+// ✅ UPS Auth helper
+async function getUPSToken() {
+  const response = await fetch('https://wwwcie.ups.com/security/v1/oauth/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      'Authorization': 'Basic ' + Buffer.from(`${process.env.UPS_CLIENT_ID}:${process.env.UPS_CLIENT_SECRET}`).toString('base64')
+    },
+    body: 'grant_type=client_credentials'
+  });
+  const data = await response.json();
+  return data.access_token;
+}
+
+// ✅ UPS Tracking API call
+async function trackUPS(trackingNumber) {
+  const token = await getUPSToken();
+
+  const response = await fetch('https://wwwcie.ups.com/api/track/v1/details', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      transId: 'tracking-example-1234',
+      transactionSrc: 'tracking-app',
+      Authorization: `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      locale: 'en_US',
+      trackingNumber: trackingNumber
+    })
+  });
+
+  return await response.json();
+}
+
+// ✅ Chat Route w/ UPS integration + OpenAI + chat logging
 app.post('/api/chat', async (req, res) => {
   try {
     const { message, threadId } = req.body;
 
+    // Check for UPS tracking number pattern
+    if (/1Z[0-9A-Z]{16}/.test(message)) {
+      const trackingInfo = await trackUPS(message);
+      return res.json({
+        response: `Here’s your tracking info:\n\n${JSON.stringify(trackingInfo, null, 2)}`,
+        threadId: threadId || 'N/A'
+      });
+    }
+
+    // OpenAI thread flow
     const thread = threadId
       ? await openai.beta.threads.retrieve(threadId)
       : await openai.beta.threads.create();
@@ -50,7 +96,7 @@ app.post('/api/chat', async (req, res) => {
     const messages = await openai.beta.threads.messages.list(thread.id);
     const assistantReply = messages.data[0].content[0].text.value;
 
-    // ✅ Save chat log
+    // Log chat to DB
     await pool.query(
       'INSERT INTO chat_logs (thread_id, user_message, assistant_reply) VALUES ($1, $2, $3)',
       [thread.id, message, assistantReply]
@@ -66,6 +112,7 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// ✅ Chat log search
 app.get('/api/chat-logs/search', async (req, res) => {
   const { q } = req.query;
   if (!q) {
@@ -86,8 +133,7 @@ app.get('/api/chat-logs/search', async (req, res) => {
   }
 });
 
-
-// Route: Retrieve order by ID
+// ✅ Order lookup endpoint
 app.get('/api/orders/:orderId', async (req, res) => {
   const { orderId } = req.params;
   try {
@@ -102,9 +148,8 @@ app.get('/api/orders/:orderId', async (req, res) => {
   }
 });
 
+// ✅ Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
-
-
