@@ -50,12 +50,17 @@ async function trackUPS(trackingNumber) {
       Authorization: `Bearer ${token}`
     },
     body: JSON.stringify({
-      trackingNumber: [trackingNumber],
+      trackingInfo: [
+        {
+          trackingNumber: trackingNumber
+        }
+      ],
       locale: 'en_US'
     })
   });
 
   const text = await response.text();
+
   try {
     const data = JSON.parse(text);
     if (!response.ok) {
@@ -66,7 +71,6 @@ async function trackUPS(trackingNumber) {
     throw new Error(`UPS tracking failed: invalid JSON response body at https://wwwcie.ups.com/api/track/v1/details. Raw: ${text}`);
   }
 }
-
 
 
 // Chat route with UPS logic
