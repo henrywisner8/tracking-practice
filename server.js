@@ -143,3 +143,5 @@ app.get('/api/test-track/:number', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+setInterval(() => console.log("Still alive"), 10000);
