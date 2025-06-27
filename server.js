@@ -52,12 +52,18 @@ async function trackUPS(trackingNumber) {
     },
     body: JSON.stringify({
       locale: 'en_US',
-      trackingNumber: trackingNumber
+      trackingNumber: [trackingNumber]  // ✅ Wrap in array
     })
   });
 
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`UPS API error: ${response.status} - ${text}`);
+  }
+
   return await response.json();
 }
+
 
 // ✅ Chat Route w/ UPS integration + OpenAI + chat logging
 app.post('/api/chat', async (req, res) => {
