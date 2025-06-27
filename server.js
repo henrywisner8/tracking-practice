@@ -39,36 +39,40 @@ async function getUPSToken() {
 }
 
 async function trackUPS(trackingNumber) {
+  const token = await getUPSToken();
+
+  const response = await fetch('https://wwwcie.ups.com/api/track/v1/details', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'transId': 'ups-track-test',
+      'transactionSrc': 'tracking-assistant',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      trackingInfo: [
+        {
+          trackingNumber: trackingNumber
+        }
+      ],
+      locale: 'en_US'
+    })
+  });
+
+  const raw = await response.text(); // don't use .json() directly
+  let data;
+
   try {
-    const token = await getUPSToken();
-
-    const response = await fetch('https://wwwcie.ups.com/api/track/v1/details', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        transId: 'track-test-id',
-        transactionSrc: 'tracking-app',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        trackingNumber: [trackingNumber],
-        locale: 'en_US',
-      }),
-    });
-
-    const raw = await response.text(); // <-- TEMPORARY FIX
-    try {
-      const data = JSON.parse(raw);
-      if (!response.ok) throw new Error(`UPS API error: ${response.status} - ${JSON.stringify(data)}`);
-      return data;
-    } catch (err) {
-      throw new Error(`UPS tracking failed: Could not parse JSON.\nRaw: ${raw}`);
-    }
-
-  } catch (error) {
-    console.error('trackUPS failed:', error);
-    throw error;
+    data = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`UPS tracking failed: Could not parse JSON.\nRaw: ${raw}`);
   }
+
+  if (!response.ok) {
+    throw new Error(`UPS API error: ${response.status} - ${JSON.stringify(data)}`);
+  }
+
+  return data;
 }
 
 
