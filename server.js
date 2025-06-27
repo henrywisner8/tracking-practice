@@ -5,38 +5,27 @@ const { Pool } = require('pg');
 const fetch = require('node-fetch');
 require('dotenv').config();
 
-console.log("✅ Server starting...");
-
-
-
-// 👇 Add this right after initializing dotenv
-console.log("✅ ENV:", {
+console.log("\u2705 Server starting...");
+console.log("\u2705 ENV:", {
   OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
   DATABASE_URL: !!process.env.DATABASE_URL,
   UPS_CLIENT_ID: !!process.env.UPS_CLIENT_ID,
   UPS_CLIENT_SECRET: !!process.env.UPS_CLIENT_SECRET
 });
 
-
 const app = express();
 
-// Allow your frontend
-app.use(cors({
-  origin: 'https://cerulean-jelly-b6b2ab.netlify.app'
-}));
+app.use(cors({ origin: 'https://cerulean-jelly-b6b2ab.netlify.app' }));
 app.use(express.json());
 app.use(express.static('public'));
 
-// OpenAI config
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// NeonDB setup
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
-// Get UPS access token
 async function getUPSToken() {
   const res = await fetch('https://wwwcie.ups.com/security/v1/oauth/token', {
     method: 'POST',
@@ -53,7 +42,6 @@ async function getUPSToken() {
 
 async function trackUPS(trackingNumber) {
   const token = await getUPSToken();
-
   const response = await fetch('https://wwwcie.ups.com/api/track/v1', {
     method: 'POST',
     headers: {
@@ -62,9 +50,7 @@ async function trackUPS(trackingNumber) {
       'transactionSrc': 'tracking-assistant',
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify({
-      trackingNumber: [trackingNumber]
-    })
+    body: JSON.stringify({ trackingNumber: [trackingNumber] })
   });
 
   const text = await response.text();
@@ -79,17 +65,10 @@ async function trackUPS(trackingNumber) {
   }
 }
 
-
-
-
-
-
-// Chat route with UPS logic
 app.post('/api/chat', async (req, res) => {
   try {
     const { message, threadId } = req.body;
 
-    // UPS tracking number detection
     const match = message.match(/1Z[0-9A-Z]{16}/);
     if (match) {
       const trackingData = await trackUPS(match[0]);
@@ -99,18 +78,20 @@ app.post('/api/chat', async (req, res) => {
       });
     }
 
-    // OpenAI thread workflow
-    const thread = threadId
-      ? await openai.beta.threads.retrieve(threadId)
-      : await openai.beta.threads.create();
+    let thread;
+    if (threadId && threadId.startsWith('thread_')) {
+      thread = await openai.beta.threads.retrieve(threadId);
+    } else {
+      thread = await openai.beta.threads.create();
+    }
 
     await openai.beta.threads.messages.create(thread.id, {
       role: "user",
-      content: message,
+      content: message
     });
 
     const run = await openai.beta.threads.runs.create(thread.id, {
-      assistant_id: process.env.OPENAI_ASSISTANT_ID,
+      assistant_id: process.env.OPENAI_ASSISTANT_ID
     });
 
     let runStatus;
@@ -128,14 +109,12 @@ app.post('/api/chat', async (req, res) => {
     );
 
     res.json({ response: reply, threadId: thread.id });
-
   } catch (err) {
     console.error('Error processing chat:', err);
     res.status(500).json({ error: 'Something went wrong: ' + err.message });
   }
 });
 
-// Search chat logs
 app.get('/api/chat-logs/search', async (req, res) => {
   const { q } = req.query;
   if (!q) return res.status(400).json({ error: 'Missing search query' });
@@ -152,7 +131,6 @@ app.get('/api/chat-logs/search', async (req, res) => {
   }
 });
 
-// Track test route (optional)
 app.get('/api/test-track/:number', async (req, res) => {
   try {
     const data = await trackUPS(req.params.number);
@@ -164,3 +142,4 @@ app.get('/api/test-track/:number', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
