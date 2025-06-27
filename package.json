@@ -2,6 +2,9 @@
   "name": "tracking-practice",
   "version": "1.0.0",
   "main": "server.js",
+  "engines": {
+    "node": "18.x"
+  },
   "scripts": {
     "start": "node server.js",
     "build": "echo \"No build step required\""
@@ -11,10 +14,9 @@
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "openai": "^4.21.0",
-    "pg": "^8.16.2"
-  },
-  "engines": {
-    "node": "18.x"
+    "pg": "^8.16.2",
+    "node-fetch": "^2.6.7"
   }
 }
+
 
