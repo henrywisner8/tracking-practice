@@ -50,9 +50,7 @@ async function trackUPS(trackingNumber) {
       'transactionSrc': 'tracking-assistant',
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify({
-      trackingNumber: [trackingNumber]
-    })
+    body: JSON.stringify({ trackingNumber: [trackingNumber] })
   });
 
   const text = await response.text();
@@ -67,13 +65,13 @@ async function trackUPS(trackingNumber) {
   }
 }
 
-
 app.post('/api/chat', async (req, res) => {
   try {
     const { message, threadId } = req.body;
 
     const match = message.match(/1Z[0-9A-Z]{16}/);
     if (match) {
+      console.log("\uD83C\uDFAF Detected UPS tracking number:", match[0]);
       const trackingData = await trackUPS(match[0]);
       return res.json({
         response: `Here’s your UPS tracking info:\n\n${JSON.stringify(trackingData, null, 2)}`,
@@ -145,4 +143,3 @@ app.get('/api/test-track/:number', async (req, res) => {
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
