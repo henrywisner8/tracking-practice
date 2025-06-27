@@ -42,7 +42,8 @@ async function getUPSToken() {
 async function trackUPS(trackingNumber) {
   const token = await getUPSToken();
 
-  const response = await fetch('https://wwwcie.ups.com/api/track/v1/details', {
+  const response = await fetch('https://wwwcie.ups.com/api/track/v1/tracking', {
+
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
