@@ -42,7 +42,7 @@ async function getUPSToken() {
 
 async function trackUPS(trackingNumber) {
   const token = await getUPSToken();
-  const response = await fetch('https://wwwcie.ups.com/api/track/v1', {
+  const response = await fetch('https://wwwcie.ups.com/api/track/v1/details', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -50,7 +50,9 @@ async function trackUPS(trackingNumber) {
       'transactionSrc': 'tracking-assistant',
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify({ trackingNumber: [trackingNumber] })
+    body: JSON.stringify({
+      trackingNumber: [trackingNumber]
+    })
   });
 
   const text = await response.text();
@@ -64,6 +66,7 @@ async function trackUPS(trackingNumber) {
     throw new Error(`UPS tracking failed: Could not parse JSON. Raw: ${text}`);
   }
 }
+
 
 app.post('/api/chat', async (req, res) => {
   try {
