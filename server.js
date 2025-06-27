@@ -5,6 +5,21 @@ const { Pool } = require('pg');
 const fetch = require('node-fetch');
 require('dotenv').config();
 
+console.log("✅ Server starting...");
+
+const express = require('express');
+const cors = require('cors');
+require('dotenv').config();
+
+// 👇 Add this right after initializing dotenv
+console.log("✅ ENV:", {
+  OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
+  DATABASE_URL: !!process.env.DATABASE_URL,
+  UPS_CLIENT_ID: !!process.env.UPS_CLIENT_ID,
+  UPS_CLIENT_SECRET: !!process.env.UPS_CLIENT_SECRET
+});
+
+
 const app = express();
 
 // Allow your frontend
@@ -65,6 +80,7 @@ async function trackUPS(trackingNumber) {
     throw new Error(`UPS tracking failed: Could not parse JSON. Raw: ${text}`);
   }
 }
+
 
 
 
