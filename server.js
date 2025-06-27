@@ -7,9 +7,7 @@ require('dotenv').config();
 
 console.log("✅ Server starting...");
 
-const express = require('express');
-const cors = require('cors');
-require('dotenv').config();
+
 
 // 👇 Add this right after initializing dotenv
 console.log("✅ ENV:", {
