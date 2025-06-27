@@ -133,6 +133,20 @@ app.get('/api/chat-logs/search', async (req, res) => {
   }
 });
 
+// ✅ Test route to query UPS directly without chatbot
+app.get('/api/track/:trackingNumber', async (req, res) => {
+  const { trackingNumber } = req.params;
+
+  try {
+    const trackingInfo = await trackUPS(trackingNumber);
+    res.json(trackingInfo);
+  } catch (err) {
+    console.error('Error fetching UPS tracking info:', err);
+    res.status(500).json({ error: 'Failed to fetch UPS tracking data' });
+  }
+});
+
+
 // ✅ Order lookup endpoint
 app.get('/api/orders/:orderId', async (req, res) => {
   const { orderId } = req.params;
