@@ -38,10 +38,10 @@ async function getUPSToken() {
   return data.access_token;
 }
 
-// Correct UPS Tracking endpoint
+// Correct UPS Tracking endpoint with proper payload
 async function trackUPS(trackingNumber) {
   const token = await getUPSToken();
-  const response = await fetch('https://wwwcie.ups.com/api/track/v1', {
+  const response = await fetch('https://wwwcie.ups.com/api/track/v1/details', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -50,14 +50,22 @@ async function trackUPS(trackingNumber) {
       'Authorization': `Bearer ${token}`
     },
     body: JSON.stringify({
-      trackingNumber: [trackingNumber]
+      trackingNumber: [trackingNumber]  // ✅ Must be an array
     })
   });
 
-  const data = await response.json();
-  if (!response.ok) throw new Error(`UPS API error: ${response.status} - ${JSON.stringify(data)}`);
-  return data;
+  const text = await response.text();
+  try {
+    const data = JSON.parse(text);
+    if (!response.ok) {
+      throw new Error(`UPS API error: ${response.status} - ${JSON.stringify(data)}`);
+    }
+    return data;
+  } catch {
+    throw new Error(`UPS tracking failed: invalid JSON response body at https://wwwcie.ups.com/api/track/v1/details. Raw: ${text}`);
+  }
 }
+
 
 // Chat route with UPS logic
 app.post('/api/chat', async (req, res) => {
