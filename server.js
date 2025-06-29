@@ -29,6 +29,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+
 // UPS
 async function getUPSToken() {
   const res = await fetch('https://wwwcie.ups.com/security/v1/oauth/token', {
@@ -39,6 +40,7 @@ async function getUPSToken() {
     },
     body: 'grant_type=client_credentials'
   });
+
   const data = await res.json();
   if (!data.access_token) throw new Error('Failed to fetch UPS token');
   return data.access_token;
@@ -69,26 +71,43 @@ async function trackUPS(trackingNumber) {
   }
 }
 
+
+// USPS
 async function trackUSPS(trackingNumber) {
   const base = 'https://secure.shippingapis.com/ShippingAPI.dll';
   const xmlRequest = `
     <TrackFieldRequest USERID="${process.env.USPS_USER_ID}">
       <TrackID ID="${trackingNumber}"></TrackID>
-    </TrackFieldRequest>`;
+    </TrackFieldRequest>
+  `.trim();
+
   const qs = querystring.stringify({
     API: 'TrackV2',
-    XML: xmlRequest.trim()
+    XML: xmlRequest
   });
 
-  const res = await fetch(`${base}?${qs}`);
+  const url = `${base}?${qs}`;
+  const res = await fetch(url);
   const xml = await res.text();
-  if (!res.ok) throw new Error(`USPS tracking failed: ${xml}`);
 
-  const parsed = await parseStringPromise(xml);
+  if (!res.ok) {
+    throw new Error(`USPS tracking failed (HTTP ${res.status}): ${xml}`);
+  }
+
+  let parsed;
+  try {
+    parsed = await parseStringPromise(xml, { explicitArray: true });
+  } catch (e) {
+    throw new Error(`Failed to parse USPS XML: ${e.message}\nRaw response:\n${xml}`);
+  }
+
   const info = parsed?.TrackResponse?.TrackInfo?.[0];
 
-  if (!info) throw new Error('No tracking info found');
-  
+  if (!info || info.Error) {
+    const desc = info?.Error?.[0]?.Description || 'Unknown USPS error.';
+    throw new Error(`No tracking info found. USPS Error: ${desc}`);
+  }
+
   const summary = info.TrackSummary?.[0] || 'No summary available.';
   const history = info.TrackDetail || [];
 
@@ -99,13 +118,11 @@ async function trackUSPS(trackingNumber) {
 }
 
 
-
-// Chat endpoint
+// Chat Endpoint
 app.post('/api/chat', async (req, res) => {
   try {
     const { message, threadId } = req.body;
 
-    // UPS tracking ID
     const matchUPS = message.match(/1Z[0-9A-Z]{16}/);
     if (matchUPS) {
       console.log("🎯 Detected UPS tracking number:", matchUPS[0]);
@@ -115,17 +132,16 @@ app.post('/api/chat', async (req, res) => {
         threadId: threadId || 'N/A'
       });
     }
-  // USPS tracking ID (e.g., 9400..., 420..., 927489...)
-  const matchUSPS = message.match(/\b(94|92|93|94|95|96|97|98|420)[0-9]{16,34}\b/i);
-  if (matchUSPS) {
-    console.log("📦 Detected USPS tracking number:", matchUSPS[0]);
-    const { summary, history } = await trackUSPS(matchUSPS[0]);
-    return res.json({
-      response: `📬 USPS Tracking Summary:\n${summary}\n\n📜 Tracking History:\n${history.join('\n')}`,
-      threadId: threadId || 'N/A'
-  });
-}
 
+    const matchUSPS = message.match(/\b(94|92|93|94|95|96|97|98|420)[0-9]{16,34}\b/i);
+    if (matchUSPS) {
+      console.log("📦 Detected USPS tracking number:", matchUSPS[0]);
+      const { summary, history } = await trackUSPS(matchUSPS[0]);
+      return res.json({
+        response: `📬 USPS Tracking Summary:\n${summary}\n\n📜 Tracking History:\n${history.join('\n')}`,
+        threadId: threadId || 'N/A'
+      });
+    }
 
     // Default: OpenAI Assistant
     let thread;
@@ -166,7 +182,8 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-// Chat log search
+
+// Search chat logs
 app.get('/api/chat-logs/search', async (req, res) => {
   const { q } = req.query;
   if (!q) return res.status(400).json({ error: 'Missing search query' });
@@ -183,6 +200,7 @@ app.get('/api/chat-logs/search', async (req, res) => {
   }
 });
 
+
 // Manual UPS test
 app.get('/api/test-track/:number', async (req, res) => {
   try {
@@ -196,5 +214,4 @@ app.get('/api/test-track/:number', async (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
-// Prevent Railway timeouts
 setInterval(() => console.log("Still alive"), 10000);
