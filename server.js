@@ -3,18 +3,21 @@ const cors = require('cors');
 const { OpenAI } = require('openai');
 const { Pool } = require('pg');
 const fetch = require('node-fetch');
+const querystring = require('querystring');
+const { parseStringPromise } = require('xml2js');
+
 require('dotenv').config();
 
-console.log("\u2705 Server starting...");
-console.log("\u2705 ENV:", {
+console.log("✅ Server starting...");
+console.log("✅ ENV:", {
   OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
   DATABASE_URL: !!process.env.DATABASE_URL,
   UPS_CLIENT_ID: !!process.env.UPS_CLIENT_ID,
-  UPS_CLIENT_SECRET: !!process.env.UPS_CLIENT_SECRET
+  UPS_CLIENT_SECRET: !!process.env.UPS_CLIENT_SECRET,
+  USPS_USER_ID: !!process.env.USPS_USER_ID
 });
 
 const app = express();
-
 app.use(cors({ origin: 'https://cerulean-jelly-b6b2ab.netlify.app' }));
 app.use(express.json());
 app.use(express.static('public'));
@@ -26,6 +29,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
+// UPS
 async function getUPSToken() {
   const res = await fetch('https://wwwcie.ups.com/security/v1/oauth/token', {
     method: 'POST',
@@ -65,20 +69,65 @@ async function trackUPS(trackingNumber) {
   }
 }
 
+async function trackUSPS(trackingNumber) {
+  const base = 'https://secure.shippingapis.com/ShippingAPI.dll';
+  const xmlRequest = `
+    <TrackFieldRequest USERID="${process.env.USPS_USER_ID}">
+      <TrackID ID="${trackingNumber}"></TrackID>
+    </TrackFieldRequest>`;
+  const qs = querystring.stringify({
+    API: 'TrackV2',
+    XML: xmlRequest.trim()
+  });
+
+  const res = await fetch(`${base}?${qs}`);
+  const xml = await res.text();
+  if (!res.ok) throw new Error(`USPS tracking failed: ${xml}`);
+
+  const parsed = await parseStringPromise(xml);
+  const info = parsed?.TrackResponse?.TrackInfo?.[0];
+
+  if (!info) throw new Error('No tracking info found');
+  
+  const summary = info.TrackSummary?.[0] || 'No summary available.';
+  const history = info.TrackDetail || [];
+
+  return {
+    summary,
+    history
+  };
+}
+
+
+
+// Chat endpoint
 app.post('/api/chat', async (req, res) => {
   try {
     const { message, threadId } = req.body;
 
-    const match = message.match(/1Z[0-9A-Z]{16}/);
-    if (match) {
-      console.log("\uD83C\uDFAF Detected UPS tracking number:", match[0]);
-      const trackingData = await trackUPS(match[0]);
+    // UPS tracking ID
+    const matchUPS = message.match(/1Z[0-9A-Z]{16}/);
+    if (matchUPS) {
+      console.log("🎯 Detected UPS tracking number:", matchUPS[0]);
+      const trackingData = await trackUPS(matchUPS[0]);
       return res.json({
         response: `Here’s your UPS tracking info:\n\n${JSON.stringify(trackingData, null, 2)}`,
         threadId: threadId || 'N/A'
       });
     }
+  // USPS tracking ID (e.g., 9400..., 420..., 927489...)
+  const matchUSPS = message.match(/\b(94|92|93|94|95|96|97|98|420)[0-9]{16,34}\b/i);
+  if (matchUSPS) {
+    console.log("📦 Detected USPS tracking number:", matchUSPS[0]);
+    const { summary, history } = await trackUSPS(matchUSPS[0]);
+    return res.json({
+      response: `📬 USPS Tracking Summary:\n${summary}\n\n📜 Tracking History:\n${history.join('\n')}`,
+      threadId: threadId || 'N/A'
+  });
+}
 
+
+    // Default: OpenAI Assistant
     let thread;
     if (threadId && threadId.startsWith('thread_')) {
       thread = await openai.beta.threads.retrieve(threadId);
@@ -110,12 +159,14 @@ app.post('/api/chat', async (req, res) => {
     );
 
     res.json({ response: reply, threadId: thread.id });
+
   } catch (err) {
     console.error('Error processing chat:', err);
     res.status(500).json({ error: 'Something went wrong: ' + err.message });
   }
 });
 
+// Chat log search
 app.get('/api/chat-logs/search', async (req, res) => {
   const { q } = req.query;
   if (!q) return res.status(400).json({ error: 'Missing search query' });
@@ -132,6 +183,7 @@ app.get('/api/chat-logs/search', async (req, res) => {
   }
 });
 
+// Manual UPS test
 app.get('/api/test-track/:number', async (req, res) => {
   try {
     const data = await trackUPS(req.params.number);
@@ -142,6 +194,7 @@ app.get('/api/test-track/:number', async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
 
+// Prevent Railway timeouts
 setInterval(() => console.log("Still alive"), 10000);
