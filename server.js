@@ -47,6 +47,15 @@ async function getUPSToken() {
 }
 
 async function trackUPS(trackingNumber) {
+  // 🧪 Mock tracking number support
+  if (/^1ZCIETST/.test(trackingNumber)) {
+    return {
+      mock: true,
+      status: "This is a test UPS tracking number. No real data is available.",
+      trackingNumber
+    };
+  }
+
   const token = await getUPSToken();
   const response = await fetch('https://wwwcie.ups.com/api/track/v1/details', {
     method: 'POST',
@@ -60,15 +69,22 @@ async function trackUPS(trackingNumber) {
   });
 
   const text = await response.text();
+
+  let json;
   try {
-    const json = JSON.parse(text);
-    if (!response.ok) {
-      throw new Error(`UPS API error: ${response.status} - ${JSON.stringify(json)}`);
-    }
-    return json;
+    json = JSON.parse(text);
   } catch (err) {
-    throw new Error(`UPS tracking failed: Could not parse JSON. Raw: ${text}`);
+    throw new Error(`UPS tracking failed: Could not parse JSON. Raw: ${text.slice(0, 200)}`);
   }
+
+  if (!response.ok || json?.errors || json?.response?.errors) {
+    const message = json?.errors?.[0]?.message ||
+                    json?.response?.errors?.[0]?.message ||
+                    'Unknown UPS error';
+    throw new Error(`UPS API error: ${response.status} - ${message}`);
+  }
+
+  return json;
 }
 
 

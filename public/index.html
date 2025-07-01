@@ -145,7 +145,8 @@
 
       // Add animated "thinking" indicator
       const thinkingId = 'thinking-' + Date.now();
-      chatbox.innerHTML += `<div id="${thinkingId}" class="thinking"><strong>Assistant:</strong> <span>.</span><span>.</span><span>.</span></div>`;
+      chatbox.innerHTML += `<div id="${thinkingId}" class="thinking"><strong>Assistant:</strong> <span>cranking</span></div>`;
+
       chatbox.scrollTop = chatbox.scrollHeight;
 
       try {
