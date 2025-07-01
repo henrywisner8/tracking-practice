@@ -3,10 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <title>Throwback Chatbot</title>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600&display=swap" rel="stylesheet">
   <style>
     body {
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #fdf4e3; /* off-white/cream background */
+      font-family: 'Kanit', sans-serif;
+      background-color: #fdf4e3;
       margin: 0;
       padding: 20px;
       display: flex;
@@ -49,7 +50,7 @@
       padding: 10px 16px;
       font-size: 16px;
       border-radius: 8px;
-      background-color: #a65454; /* maroon-like shade */
+      background-color: #a65454;
       color: white;
       border: none;
       cursor: pointer;
@@ -78,6 +79,26 @@
     .reset:hover {
       color: #000;
     }
+
+    .thinking {
+  display: inline-block;
+  font-weight: bold;
+  color: #a65454;
+}
+
+.thinking span {
+  animation: crankPulse 1s ease-in-out infinite;
+  display: inline-block;
+  font-style: italic;
+  letter-spacing: 1px;
+}
+
+@keyframes crankPulse {
+  0% { opacity: 0.2; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+  100% { opacity: 0.2; transform: scale(1); }
+}
+
   </style>
 </head>
 <body>
@@ -122,6 +143,11 @@
       input.value = '';
       button.disabled = true;
 
+      // Add animated "thinking" indicator
+      const thinkingId = 'thinking-' + Date.now();
+      chatbox.innerHTML += `<div id="${thinkingId}" class="thinking"><strong>Assistant:</strong> <span>.</span><span>.</span><span>.</span></div>`;
+      chatbox.scrollTop = chatbox.scrollHeight;
+
       try {
         const res = await fetch('https://tracking-practice-production.up.railway.app/api/chat', {
           method: 'POST',
@@ -132,10 +158,17 @@
         const data = await res.json();
         localStorage.threadId = data.threadId;
 
+        // Remove "thinking" and replace with real message
+        const thinkingElem = document.getElementById(thinkingId);
+        if (thinkingElem) thinkingElem.remove();
+
         chatbox.innerHTML += `<div><strong>Assistant:</strong> ${escapeHtml(data.response)}</div>`;
         chatbox.scrollTop = chatbox.scrollHeight;
 
       } catch (err) {
+        const thinkingElem = document.getElementById(thinkingId);
+        if (thinkingElem) thinkingElem.remove();
+
         chatbox.innerHTML += `<div style="color: red;"><strong>Error:</strong> ${escapeHtml(err.message)}</div>`;
       }
 
@@ -144,4 +177,5 @@
   </script>
 </body>
 </html>
+
 
