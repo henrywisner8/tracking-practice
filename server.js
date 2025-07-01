@@ -184,6 +184,14 @@ app.post('/api/chat', async (req, res) => {
 
     const messages = await openai.beta.threads.messages.list(thread.id);
     const reply = messages.data[0].content[0].text.value;
+const cleanReply = reply.replace(/【\d+:\d+†.*?\.docx】/g, '').trim();
+
+await pool.query(
+  'INSERT INTO chat_logs (thread_id, user_message, assistant_reply) VALUES ($1, $2, $3)',
+  [thread.id, message, cleanReply]
+);
+
+res.json({ response: cleanReply, threadId: thread.id });
 
     await pool.query(
       'INSERT INTO chat_logs (thread_id, user_message, assistant_reply) VALUES ($1, $2, $3)',
