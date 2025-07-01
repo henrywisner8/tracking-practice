@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Throwback Chatbot</title>
   <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
     body {
       font-family: 'Kanit', sans-serif;
@@ -35,6 +36,18 @@
 
     #chatbox div {
       margin-bottom: 10px;
+    }
+
+    #chatbox a {
+      color: #a65454;
+      text-decoration: underline;
+    }
+
+    #chatbox code {
+      background: #f4f4f4;
+      padding: 2px 4px;
+      border-radius: 4px;
+      font-family: monospace;
     }
 
     input[type="text"] {
@@ -81,24 +94,23 @@
     }
 
     .thinking {
-  display: inline-block;
-  font-weight: bold;
-  color: #a65454;
-}
+      display: inline-block;
+      font-weight: bold;
+      color: #a65454;
+    }
 
-.thinking span {
-  animation: crankPulse 1s ease-in-out infinite;
-  display: inline-block;
-  font-style: italic;
-  letter-spacing: 1px;
-}
+    .thinking span {
+      animation: crankPulse 1s ease-in-out infinite;
+      display: inline-block;
+      font-style: italic;
+      letter-spacing: 1px;
+    }
 
-@keyframes crankPulse {
-  0% { opacity: 0.2; transform: scale(1); }
-  50% { opacity: 1; transform: scale(1.05); }
-  100% { opacity: 0.2; transform: scale(1); }
-}
-
+    @keyframes crankPulse {
+      0% { opacity: 0.2; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.05); }
+      100% { opacity: 0.2; transform: scale(1); }
+    }
   </style>
 </head>
 <body>
@@ -143,10 +155,9 @@
       input.value = '';
       button.disabled = true;
 
-      // Add animated "thinking" indicator
+      // Add animated "cranking" indicator
       const thinkingId = 'thinking-' + Date.now();
       chatbox.innerHTML += `<div id="${thinkingId}" class="thinking"><strong>Assistant:</strong> <span>cranking</span></div>`;
-
       chatbox.scrollTop = chatbox.scrollHeight;
 
       try {
@@ -159,11 +170,18 @@
         const data = await res.json();
         localStorage.threadId = data.threadId;
 
-        // Remove "thinking" and replace with real message
+        // Remove thinking animation
         const thinkingElem = document.getElementById(thinkingId);
         if (thinkingElem) thinkingElem.remove();
 
-        chatbox.innerHTML += `<div><strong>Assistant:</strong> ${escapeHtml(data.response)}</div>`;
+        if (data.response) {
+          chatbox.innerHTML += `<div><strong>Assistant:</strong><div>${marked.parse(data.response)}</div></div>`;
+        } else if (data.error) {
+          chatbox.innerHTML += `<div style="color: red;"><strong>Error:</strong><div>${escapeHtml(data.error)}</div></div>`;
+        } else {
+          chatbox.innerHTML += `<div style="color: red;"><strong>Error:</strong> Unexpected server response.</div>`;
+        }
+
         chatbox.scrollTop = chatbox.scrollHeight;
 
       } catch (err) {
@@ -178,5 +196,3 @@
   </script>
 </body>
 </html>
-
-
