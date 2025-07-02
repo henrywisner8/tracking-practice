@@ -117,11 +117,18 @@ async function trackUSPS(trackingNumber) {
     throw new Error(`Failed to parse USPS XML: ${e.message}\nRaw response:\n${xml}`);
   }
 
+  // DEBUG (optional): log full parsed response
+  console.log('📦 Parsed USPS:', JSON.stringify(parsed, null, 2));
+
   const info = parsed?.TrackResponse?.TrackInfo?.[0];
 
-  if (!info || info.Error) {
-    const desc = info?.Error?.[0]?.Description || 'Unknown USPS error.';
-    throw new Error(`No tracking info found. USPS Error: ${desc}`);
+  if (!info) {
+    throw new Error('USPS Error: Missing tracking info in response.');
+  }
+
+  if (info.Error) {
+    const desc = info.Error?.[0]?.Description || 'Unspecified USPS error.';
+    throw new Error(`USPS Error: ${desc}`);
   }
 
   const summary = info.TrackSummary?.[0] || 'No summary available.';
@@ -132,6 +139,7 @@ async function trackUSPS(trackingNumber) {
     history
   };
 }
+
 
 
 // Chat Endpoint
