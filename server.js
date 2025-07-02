@@ -139,6 +139,7 @@ app.post('/api/chat', async (req, res) => {
   try {
     const { message, threadId } = req.body;
 
+    // 🟤 Check UPS tracking number
     const matchUPS = message.match(/1Z[0-9A-Z]{16}/);
     if (matchUPS) {
       console.log("🎯 Detected UPS tracking number:", matchUPS[0]);
@@ -149,7 +150,8 @@ app.post('/api/chat', async (req, res) => {
       });
     }
 
-    const matchUSPS = message.match(/\b(94|92|93|94|95|96|97|98|420)[0-9]{16,34}\b/i);
+    // 🔵 Check USPS tracking number
+    const matchUSPS = message.match(/\b(94|92|93|95|96|97|98|420)[0-9]{16,34}\b/i);
     if (matchUSPS) {
       console.log("📦 Detected USPS tracking number:", matchUSPS[0]);
       const { summary, history } = await trackUSPS(matchUSPS[0]);
@@ -159,7 +161,7 @@ app.post('/api/chat', async (req, res) => {
       });
     }
 
-    // Default: OpenAI Assistant
+    // 🧠 OpenAI Assistant fallback
     let thread;
     if (threadId && threadId.startsWith('thread_')) {
       thread = await openai.beta.threads.retrieve(threadId);
@@ -183,28 +185,24 @@ app.post('/api/chat', async (req, res) => {
     } while (runStatus.status !== 'completed');
 
     const messages = await openai.beta.threads.messages.list(thread.id);
-    const reply = messages.data[0].content[0].text.value;
-const cleanReply = reply.replace(/【\d+:\d+†.*?\.docx】/g, '').trim();
+    const rawReply = messages.data[0].content[0].text.value;
 
-await pool.query(
-  'INSERT INTO chat_logs (thread_id, user_message, assistant_reply) VALUES ($1, $2, $3)',
-  [thread.id, message, cleanReply]
-);
-
-res.json({ response: cleanReply, threadId: thread.id });
+    // ✂️ Strip citations like "4:0†Throwback Products (1).docx"
+    const cleanReply = rawReply.replace(/\[\d+:[^\]]*?\.docx\]/g, '').trim();
 
     await pool.query(
       'INSERT INTO chat_logs (thread_id, user_message, assistant_reply) VALUES ($1, $2, $3)',
-      [thread.id, message, reply]
+      [thread.id, message, cleanReply]
     );
 
-    res.json({ response: reply, threadId: thread.id });
+    return res.json({ response: cleanReply, threadId: thread.id });
 
   } catch (err) {
-    console.error('Error processing chat:', err);
-    res.status(500).json({ error: 'Something went wrong: ' + err.message });
+    console.error('❌ Error processing chat:', err);
+    return res.status(500).json({ error: 'Something went wrong: ' + err.message });
   }
 });
+
 
 
 // Search chat logs
