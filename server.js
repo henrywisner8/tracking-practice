@@ -195,8 +195,8 @@ app.post('/api/chat', async (req, res) => {
     const messages = await openai.beta.threads.messages.list(thread.id);
     const rawReply = messages.data[0].content[0].text.value;
 
-    // ✂️ Strip citations like "4:0†Throwback Products List"
-const cleanReply = rawReply.replace(/\[\d+:[^\]]*?Throwback Products List\]/g, '').trim();
+    const cleanReply = rawReply.replace(/\[\d+:\d+[^\]]*?Throwback Products List\.docx\]/g, '').trim();
+
 
 
 
