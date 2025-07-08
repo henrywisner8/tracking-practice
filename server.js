@@ -195,8 +195,9 @@ app.post('/api/chat', async (req, res) => {
     const messages = await openai.beta.threads.messages.list(thread.id);
     const rawReply = messages.data[0].content[0].text.value;
 
-    // ✂️ Strip citations like "4:0†Throwback Products (1).docx"
-    const cleanReply = rawReply.replace(/\[\d+:[^\]]*?\.docx\]/g, '').trim();
+    // ✂️ Strip citations like "4:0†Throwback Product Descriptions"
+const cleanReply = rawReply.replace(/\[\d+:[^\]]*?Throwback Product Descriptions\]/g, '').trim();
+
 
     await pool.query(
       'INSERT INTO chat_logs (thread_id, user_message, assistant_reply) VALUES ($1, $2, $3)',
