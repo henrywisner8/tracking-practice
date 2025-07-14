@@ -5,6 +5,7 @@ const { Pool } = require('pg');
 const fetch = require('node-fetch');
 const querystring = require('querystring');
 const { parseStringPromise } = require('xml2js');
+const { createAnalyticsAgent } = require('./analyticsAgent');
 
 require('dotenv').config();
 
@@ -27,6 +28,19 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
+});
+
+app.post('/api/client-analytics', async (req, res) => {
+  try {
+    const { message } = req.body;
+    const agent = await createAnalyticsAgent();
+    const response = await agent.call({ input: message });
+
+    res.json({ response: response.output });
+  } catch (err) {
+    console.error('❌ Analytics Agent Error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 
