@@ -167,7 +167,7 @@
       chatbox.innerHTML = '';
     }
 
- async function sendMessage() {
+async function sendMessage() {
   const msg = input.value.trim();
   if (!msg) return;
 
@@ -183,45 +183,43 @@
   input.value = '';
   button.disabled = true;
 
-  // ...rest of your sendMessage code here
+  const thinkingId = 'thinking-' + Date.now();
+  chatbox.innerHTML += `<div id="${thinkingId}" class="thinking"><strong>Assistant:</strong> <span>cranking</span></div>`;
+  chatbox.scrollTop = chatbox.scrollHeight;
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+    if (bot === 'chat') localStorage.threadId = data.threadId;
+
+    const thinkingElem = document.getElementById(thinkingId);
+    if (thinkingElem) thinkingElem.remove();
+
+    if (data.response) {
+      chatbox.innerHTML += `<div><strong>Assistant:</strong><div>${marked.parse(data.response)}</div></div>`;
+    } else if (data.error) {
+      chatbox.innerHTML += `<div style="color: red;"><strong>Error:</strong><div>${escapeHtml(data.error)}</div></div>`;
+    } else {
+      chatbox.innerHTML += `<div style="color: red;"><strong>Error:</strong> Unexpected server response.</div>`;
+    }
+
+    chatbox.scrollTop = chatbox.scrollHeight;
+
+  } catch (err) {
+    const thinkingElem = document.getElementById(thinkingId);
+    if (thinkingElem) thinkingElem.remove();
+
+    chatbox.innerHTML += `<div style="color: red;"><strong>Error:</strong> ${escapeHtml(err.message)}</div>`;
+  }
+
+  button.disabled = false;
 }
-
-
-      const thinkingId = 'thinking-' + Date.now();
-      chatbox.innerHTML += `<div id="${thinkingId}" class="thinking"><strong>Assistant:</strong> <span>cranking</span></div>`;
-      chatbox.scrollTop = chatbox.scrollHeight;
-
-      try {
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await res.json();
-        if (bot === 'chat') localStorage.threadId = data.threadId;
-
-        const thinkingElem = document.getElementById(thinkingId);
-        if (thinkingElem) thinkingElem.remove();
-
-        if (data.response) {
-          chatbox.innerHTML += `<div><strong>Assistant:</strong><div>${marked.parse(data.response)}</div></div>`;
-        } else if (data.error) {
-          chatbox.innerHTML += `<div style="color: red;"><strong>Error:</strong><div>${escapeHtml(data.error)}</div></div>`;
-        } else {
-          chatbox.innerHTML += `<div style="color: red;"><strong>Error:</strong> Unexpected server response.</div>`;
-        }
-
-        chatbox.scrollTop = chatbox.scrollHeight;
-
-      } catch (err) {
-        const thinkingElem = document.getElementById(thinkingId);
-        if (thinkingElem) thinkingElem.remove();
-
-        chatbox.innerHTML += `<div style="color: red;"><strong>Error:</strong> ${escapeHtml(err.message)}</div>`;
-      }
-
-      button.disabled = false;
+ 
   </script>
 </body>
 </html>
