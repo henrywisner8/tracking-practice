@@ -50,8 +50,15 @@
       font-family: monospace;
     }
 
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
     input[type="text"] {
-      width: 70%;
+      flex: 1;
       padding: 10px;
       border-radius: 8px;
       border: 2px solid #2e2e2e;
@@ -111,22 +118,35 @@
       50% { opacity: 1; transform: scale(1.05); }
       100% { opacity: 0.2; transform: scale(1); }
     }
+
+    select {
+      padding: 8px;
+      border-radius: 8px;
+      border: 2px solid #2e2e2e;
+      font-size: 16px;
+    }
   </style>
 </head>
 <body>
   <h2>Throwback Bot 1.0</h2>
-  <div id="chatbox"></div>
 
-  <div>
+  <div class="controls">
+    <select id="botSelector">
+      <option value="chat">Customer Bot</option>
+      <option value="analytics">Analytics Bot</option>
+    </select>
     <input type="text" id="input" placeholder="Enter your message...">
     <button onclick="sendMessage()">Send</button>
   </div>
+
+  <div id="chatbox"></div>
   <button class="reset" onclick="resetChat()">Reset chat</button>
 
   <script>
     const input = document.getElementById('input');
     const chatbox = document.getElementById('chatbox');
     const button = document.querySelector('button');
+    const botSelector = document.getElementById('botSelector');
 
     input.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') sendMessage();
@@ -151,26 +171,32 @@
       const msg = input.value.trim();
       if (!msg) return;
 
+      const bot = botSelector.value;
+      const endpoint = bot === 'analytics'
+        ? 'http://localhost:3000/api/client-analytics'
+        : 'https://tracking-practice-production.up.railway.app/api/chat';
+
+      const payload = { message: msg };
+      if (bot === 'chat') payload.threadId = localStorage.threadId;
+
       chatbox.innerHTML += `<div><strong>You:</strong> ${escapeHtml(msg)}</div>`;
       input.value = '';
       button.disabled = true;
 
-      // Add animated "cranking" indicator
       const thinkingId = 'thinking-' + Date.now();
       chatbox.innerHTML += `<div id="${thinkingId}" class="thinking"><strong>Assistant:</strong> <span>cranking</span></div>`;
       chatbox.scrollTop = chatbox.scrollHeight;
 
       try {
-        const res = await fetch('https://tracking-practice-production.up.railway.app/api/chat', {
+        const res = await fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: msg, threadId: localStorage.threadId })
+          body: JSON.stringify(payload)
         });
 
         const data = await res.json();
-        localStorage.threadId = data.threadId;
+        if (bot === 'chat') localStorage.threadId = data.threadId;
 
-        // Remove thinking animation
         const thinkingElem = document.getElementById(thinkingId);
         if (thinkingElem) thinkingElem.remove();
 
@@ -196,3 +222,4 @@
   </script>
 </body>
 </html>
+
