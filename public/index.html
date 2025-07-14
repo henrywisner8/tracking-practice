@@ -167,21 +167,25 @@
       chatbox.innerHTML = '';
     }
 
-    async function sendMessage() {
-      const msg = input.value.trim();
-      if (!msg) return;
+ async function sendMessage() {
+  const msg = input.value.trim();
+  if (!msg) return;
 
-      const bot = botSelector.value;
-      const endpoint = bot === 'analytics'
-        ? 'http://localhost:3000/api/client-analytics'
-        : 'https://tracking-practice-production.up.railway.app/api/chat';
+  const bot = botSelector.value;
+  const endpoint = bot === 'analytics'
+    ? 'https://tracking-practice-production.up.railway.app/api/client-analytics'
+    : 'https://tracking-practice-production.up.railway.app/api/chat';
 
-      const payload = { message: msg };
-      if (bot === 'chat') payload.threadId = localStorage.threadId;
+  const payload = { message: msg };
+  if (bot === 'chat') payload.threadId = localStorage.threadId;
 
-      chatbox.innerHTML += `<div><strong>You:</strong> ${escapeHtml(msg)}</div>`;
-      input.value = '';
-      button.disabled = true;
+  chatbox.innerHTML += `<div><strong>You:</strong> ${escapeHtml(msg)}</div>`;
+  input.value = '';
+  button.disabled = true;
+
+  // ...rest of your sendMessage code here
+}
+
 
       const thinkingId = 'thinking-' + Date.now();
       chatbox.innerHTML += `<div id="${thinkingId}" class="thinking"><strong>Assistant:</strong> <span>cranking</span></div>`;
@@ -218,7 +222,6 @@
       }
 
       button.disabled = false;
-    }
   </script>
 </body>
 </html>
