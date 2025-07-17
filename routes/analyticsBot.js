@@ -13,7 +13,6 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-const ASSISTANT_ID = 'asst_n8H7Hht2vthmLigo2JSS1dWf';
 
 // Define tool functions
 const tools = {
