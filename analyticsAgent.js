@@ -2,15 +2,14 @@ const { ChatOpenAI } = require("langchain/chat_models/openai");
 const { initializeAgentExecutorWithOptions } = require("langchain/agents");
 const { DynamicTool } = require("langchain/tools");
 const { Pool } = require("pg");
+
 require("dotenv").config();
 
-// PostgreSQL connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
-// Tool: Get 5 most recent chats
 const getRecentChats = new DynamicTool({
   name: "get_recent_chats",
   description: "Get the 5 most recent chatbot conversations",
@@ -22,7 +21,6 @@ const getRecentChats = new DynamicTool({
   }
 });
 
-// Tool: Get total chat count
 const getChatCount = new DynamicTool({
   name: "get_chat_count",
   description: "Get the total number of chatbot messages logged",
@@ -32,7 +30,6 @@ const getChatCount = new DynamicTool({
   }
 });
 
-// Tool: Get 5 most recent orders
 const getLatestOrders = new DynamicTool({
   name: "get_latest_orders",
   description: "Fetch the 5 most recent orders",
@@ -44,10 +41,9 @@ const getLatestOrders = new DynamicTool({
   }
 });
 
-// Tool: Get first 100 chatbot interactions
 const getAllChatsSummary = new DynamicTool({
   name: "get_all_chats_summary",
-  description: "Summarize the first 100 chatbot conversations. Useful for understanding user interaction.",
+  description: "Summarize the first 100 chatbot interactions",
   func: async () => {
     const res = await pool.query(
       `SELECT user_message, assistant_reply, created_at 
@@ -68,14 +64,18 @@ const getAllChatsSummary = new DynamicTool({
   }
 });
 
-// Main function to create the agent
 async function createAnalyticsAgent() {
   const model = new ChatOpenAI({
     temperature: 0,
     openAIApiKey: process.env.OPENAI_API_KEY
   });
 
-  const tools = [getRecentChats, getChatCount, getLatestOrders, getAllChatsSummary];
+  const tools = [
+    getRecentChats,
+    getChatCount,
+    getLatestOrders,
+    getAllChatsSummary
+  ];
 
   const agentExecutor = await initializeAgentExecutorWithOptions(tools, model, {
     agentType: "openai-functions",
@@ -86,4 +86,5 @@ async function createAnalyticsAgent() {
 }
 
 module.exports = { createAnalyticsAgent };
+
 
