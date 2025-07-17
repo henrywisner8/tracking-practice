@@ -1,9 +1,10 @@
 // routes/analyticsBot.js
+require('dotenv').config();
 const express = require('express');
 const router = express.Router();
 const { OpenAI } = require('openai');
 const { Pool } = require('pg');
-require('dotenv').config();
+const ASSISTANT_ID = process.env.OPENAI_ANALYTICS_ASSISTANT_ID;
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
