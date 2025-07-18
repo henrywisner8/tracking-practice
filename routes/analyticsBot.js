@@ -47,6 +47,9 @@ router.post('/', async (req, res) => {
   try {
     const { message } = req.body;
 
+    console.log("Using Assistant ID:", ASSISTANT_ID);
+
+
     // Create a thread
     const thread = await openai.beta.threads.create();
 
