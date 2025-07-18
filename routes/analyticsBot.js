@@ -6,6 +6,10 @@ const { OpenAI } = require('openai');
 const { Pool } = require('pg');
 const ASSISTANT_ID = process.env.OPENAI_ANALYTICS_ASSISTANT_ID;
 
+console.log("💡 Using Assistant ID:", ASSISTANT_ID);
+
+
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const pool = new Pool({
