@@ -53,6 +53,9 @@ router.post('/', async (req, res) => {
 
     console.log("Using Assistant ID:", ASSISTANT_ID);
 
+    console.log("📥 [AnalyticsBot] Message received:", message);
+
+    console.log("📩 Incoming message:", message);
 
     // Create a thread
     const thread = await openai.beta.threads.create();
@@ -85,7 +88,7 @@ router.post('/', async (req, res) => {
   const outputs = await Promise.all(
     toolCalls.map(async call => {
       console.log(`🔧 Tool called: ${call.function.name}`, call.function.arguments);
-
+      
       return {
         tool_call_id: call.id,
         output: tools[call.function.name]
