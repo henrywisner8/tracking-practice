@@ -38,9 +38,9 @@ const pool = new Pool({
 ========================= */
 async function logToGuard(prompt, response) {
   try {
-    console.log("📊 Logging to Base44:", { prompt, response });
+    console.log("📊 Sending to Base44:", { prompt, response });
 
-    await fetch(`https://api.base44.com/api/apps/${BASE44_APP_ID}/entities/EvalLog`, {
+    const res = await fetch(`https://api.base44.com/api/apps/${BASE44_APP_ID}/entities/EvalLog`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${BASE44_API_KEY}`,
@@ -54,11 +54,14 @@ async function logToGuard(prompt, response) {
       })
     });
 
+    const text = await res.text();
+
+    console.log("📊 Base44 response:", res.status, text);
+
   } catch (err) {
-    console.error("⚠️ Base44 logging failed:", err.message);
+    console.error("❌ Base44 error:", err.message);
   }
 }
-
 /* =========================
    📦 UPS (optional)
 ========================= */
