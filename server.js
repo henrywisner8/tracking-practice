@@ -3,7 +3,6 @@ const cors = require('cors');
 const { OpenAI } = require('openai');
 const { Pool } = require('pg');
 const fetch = require('node-fetch');
-const querystring = require('querystring');
 const { parseStringPromise } = require('xml2js');
 
 require('dotenv').config();
@@ -14,7 +13,7 @@ app.use(express.json());
 app.use(express.static('public'));
 
 /* =========================
-   🔐 CONFIG (REPLACE THESE)
+   🔐 CONFIG
 ========================= */
 const BASE44_API_KEY = process.env.BASE44_API_KEY;
 const BASE44_APP_ID = process.env.BASE44_APP_ID;
@@ -35,10 +34,12 @@ const pool = new Pool({
 });
 
 /* =========================
-   📊 HALLUCINATION GUARD
+   📊 BASE44 LOGGING
 ========================= */
 async function logToGuard(prompt, response) {
   try {
+    console.log("📊 Logging to Base44:", { prompt, response });
+
     await fetch(`https://api.base44.com/api/apps/${BASE44_APP_ID}/entities/EvalLog`, {
       method: "POST",
       headers: {
@@ -52,20 +53,23 @@ async function logToGuard(prompt, response) {
         endpoint: OPENAI_ASSISTANT_ID
       })
     });
+
   } catch (err) {
-    console.error("⚠️ Logging failed:", err.message);
+    console.error("⚠️ Base44 logging failed:", err.message);
   }
 }
 
 /* =========================
-   📦 UPS
+   📦 UPS (optional)
 ========================= */
 async function getUPSToken() {
   const res = await fetch('https://wwwcie.ups.com/security/v1/oauth/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': 'Basic ' + Buffer.from("UPS_CLIENT_ID:UPS_CLIENT_SECRET").toString('base64')
+      'Authorization': 'Basic ' + Buffer.from(
+        `${process.env.UPS_CLIENT_ID}:${process.env.UPS_CLIENT_SECRET}`
+      ).toString('base64')
     },
     body: 'grant_type=client_credentials'
   });
@@ -94,7 +98,7 @@ async function trackUPS(trackingNumber) {
 ========================= */
 async function trackUSPS(trackingNumber) {
   const xmlRequest = `
-    <TrackFieldRequest USERID="YOUR_USPS_USER_ID">
+    <TrackFieldRequest USERID="${process.env.USPS_USER_ID}">
       <TrackID ID="${trackingNumber}"></TrackID>
     </TrackFieldRequest>
   `.trim();
@@ -124,10 +128,9 @@ app.post('/api/chat', async (req, res) => {
     const matchUPS = message.match(/1Z[0-9A-Z]{16}/);
     if (matchUPS) {
       const data = await trackUPS(matchUPS[0]);
-
       const responseText = `UPS Tracking:\n${JSON.stringify(data, null, 2)}`;
 
-      logToGuard(message, responseText);
+      await logToGuard(message, responseText);
 
       return res.json({
         response: responseText,
@@ -142,7 +145,7 @@ app.post('/api/chat', async (req, res) => {
 
       const responseText = `USPS Summary:\n${summary}\n\nHistory:\n${history.join('\n')}`;
 
-      logToGuard(message, responseText);
+      await logToGuard(message, responseText);
 
       return res.json({
         response: responseText,
@@ -176,14 +179,18 @@ app.post('/api/chat', async (req, res) => {
     const messages = await openai.beta.threads.messages.list(thread.id);
     const reply = messages.data[0].content[0].text.value.trim();
 
-    /* 🔥 LOG TO GUARD */
-    logToGuard(message, reply);
+    /* 🔥 LOG ALWAYS */
+    await logToGuard(message, reply);
 
     /* 💾 SAVE TO DB */
-    await pool.query(
-      'INSERT INTO chat_logs (thread_id, user_message, assistant_reply) VALUES ($1, $2, $3)',
-      [thread.id, message, reply]
-    );
+    try {
+      await pool.query(
+        'INSERT INTO chat_logs (thread_id, user_message, assistant_reply) VALUES ($1, $2, $3)',
+        [thread.id, message, reply]
+      );
+    } catch (dbErr) {
+      console.error("⚠️ DB insert failed:", dbErr.message);
+    }
 
     return res.json({
       response: reply,
