@@ -5,185 +5,151 @@ const { Pool } = require('pg');
 const fetch = require('node-fetch');
 const querystring = require('querystring');
 const { parseStringPromise } = require('xml2js');
-const { createAnalyticsAgent } = require('./analyticsAgent');
 
 require('dotenv').config();
 
-console.log("✅ Server starting...");
-console.log("✅ ENV:", {
-  OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
-  DATABASE_URL: !!process.env.DATABASE_URL,
-  UPS_CLIENT_ID: !!process.env.UPS_CLIENT_ID,
-  UPS_CLIENT_SECRET: !!process.env.UPS_CLIENT_SECRET,
-  USPS_USER_ID: !!process.env.USPS_USER_ID
-});
-
 const app = express();
-app.use(cors({ origin: 'https://cerulean-jelly-b6b2ab.netlify.app' }));
+app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+/* =========================
+   🔐 CONFIG (REPLACE THESE)
+========================= */
+const BASE44_API_KEY = process.env.BASE44_API_KEY;
+const BASE44_APP_ID = process.env.BASE44_APP_ID;
+const OPENAI_ASSISTANT_ID = process.env.OPENAI_ASSISTANT_ID;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
+/* =========================
+   🧠 OPENAI
+========================= */
+const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+
+/* =========================
+   🗄 DATABASE
+========================= */
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
 
-app.post('/api/client-analytics', async (req, res) => {
+/* =========================
+   📊 HALLUCINATION GUARD
+========================= */
+async function logToGuard(prompt, response) {
   try {
-    const { message } = req.body;
-    const agent = await createAnalyticsAgent();
-    const response = await agent.call({ input: message });
-
-    res.json({ response: response.output });
+    await fetch(`https://api.base44.com/api/apps/${BASE44_APP_ID}/entities/EvalLog`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${BASE44_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        prompt,
+        response,
+        model: "openai-assistant",
+        endpoint: OPENAI_ASSISTANT_ID
+      })
+    });
   } catch (err) {
-    console.error('❌ Analytics Agent Error:', err);
-    res.status(500).json({ error: err.message });
+    console.error("⚠️ Logging failed:", err.message);
   }
-});
+}
 
-
-// UPS
+/* =========================
+   📦 UPS
+========================= */
 async function getUPSToken() {
   const res = await fetch('https://wwwcie.ups.com/security/v1/oauth/token', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
-      'Authorization': 'Basic ' + Buffer.from(`${process.env.UPS_CLIENT_ID}:${process.env.UPS_CLIENT_SECRET}`).toString('base64')
+      'Authorization': 'Basic ' + Buffer.from("UPS_CLIENT_ID:UPS_CLIENT_SECRET").toString('base64')
     },
     body: 'grant_type=client_credentials'
   });
 
   const data = await res.json();
-  if (!data.access_token) throw new Error('Failed to fetch UPS token');
   return data.access_token;
 }
 
 async function trackUPS(trackingNumber) {
-  // 🧪 Mock tracking number support
-  if (/^1ZCIETST/.test(trackingNumber)) {
-    return {
-      mock: true,
-      status: "This is a test UPS tracking number. No real data is available.",
-      trackingNumber
-    };
-  }
-
   const token = await getUPSToken();
+
   const response = await fetch('https://wwwcie.ups.com/api/track/v1/details', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'transId': 'ups-track-test',
-      'transactionSrc': 'tracking-assistant',
       'Authorization': `Bearer ${token}`
     },
     body: JSON.stringify({ trackingNumber: [trackingNumber] })
   });
 
-  const text = await response.text();
-
-  let json;
-  try {
-    json = JSON.parse(text);
-  } catch (err) {
-    throw new Error(`UPS tracking failed: Could not parse JSON. Raw: ${text.slice(0, 200)}`);
-  }
-
-  if (!response.ok || json?.errors || json?.response?.errors) {
-    const message = json?.errors?.[0]?.message ||
-                    json?.response?.errors?.[0]?.message ||
-                    'Unknown UPS error';
-    throw new Error(`UPS API error: ${response.status} - ${message}`);
-  }
-
-  return json;
+  return await response.json();
 }
 
-
-// USPS
+/* =========================
+   📬 USPS
+========================= */
 async function trackUSPS(trackingNumber) {
-  const base = 'https://secure.shippingapis.com/ShippingAPI.dll';
   const xmlRequest = `
-    <TrackFieldRequest USERID="${process.env.USPS_USER_ID}">
+    <TrackFieldRequest USERID="YOUR_USPS_USER_ID">
       <TrackID ID="${trackingNumber}"></TrackID>
     </TrackFieldRequest>
   `.trim();
 
-  const qs = querystring.stringify({
-    API: 'TrackV2',
-    XML: xmlRequest
-  });
+  const url = `https://secure.shippingapis.com/ShippingAPI.dll?API=TrackV2&XML=${encodeURIComponent(xmlRequest)}`;
 
-  const url = `${base}?${qs}`;
   const res = await fetch(url);
   const xml = await res.text();
 
-  if (!res.ok) {
-    throw new Error(`USPS tracking failed (HTTP ${res.status}): ${xml}`);
-  }
-
-  let parsed;
-  try {
-    parsed = await parseStringPromise(xml, { explicitArray: true });
-  } catch (e) {
-    throw new Error(`Failed to parse USPS XML: ${e.message}\nRaw response:\n${xml}`);
-  }
-
-  // DEBUG (optional): log full parsed response
-  console.log('📦 Parsed USPS:', JSON.stringify(parsed, null, 2));
-
+  const parsed = await parseStringPromise(xml);
   const info = parsed?.TrackResponse?.TrackInfo?.[0];
 
-  if (!info) {
-    throw new Error('USPS Error: Missing tracking info in response.');
-  }
-
-  if (info.Error) {
-    const desc = info.Error?.[0]?.Description || 'Unspecified USPS error.';
-    throw new Error(`USPS Error: ${desc}`);
-  }
-
-  const summary = info.TrackSummary?.[0] || 'No summary available.';
-  const history = info.TrackDetail || [];
-
   return {
-    summary,
-    history
+    summary: info?.TrackSummary?.[0] || "No summary",
+    history: info?.TrackDetail || []
   };
 }
 
-
-
-// Chat Endpoint
+/* =========================
+   💬 CHAT ENDPOINT
+========================= */
 app.post('/api/chat', async (req, res) => {
   try {
     const { message, threadId } = req.body;
 
-    // 🟤 Check UPS tracking number
+    /* ===== UPS ===== */
     const matchUPS = message.match(/1Z[0-9A-Z]{16}/);
     if (matchUPS) {
-      console.log("🎯 Detected UPS tracking number:", matchUPS[0]);
-      const trackingData = await trackUPS(matchUPS[0]);
+      const data = await trackUPS(matchUPS[0]);
+
+      const responseText = `UPS Tracking:\n${JSON.stringify(data, null, 2)}`;
+
+      logToGuard(message, responseText);
+
       return res.json({
-        response: `Here’s your UPS tracking info:\n\n${JSON.stringify(trackingData, null, 2)}`,
+        response: responseText,
         threadId: threadId || 'N/A'
       });
     }
 
-    // 🔵 Check USPS tracking number
+    /* ===== USPS ===== */
     const matchUSPS = message.match(/\b(94|92|93|95|96|97|98|420)[0-9]{16,34}\b/i);
     if (matchUSPS) {
-      console.log("📦 Detected USPS tracking number:", matchUSPS[0]);
       const { summary, history } = await trackUSPS(matchUSPS[0]);
+
+      const responseText = `USPS Summary:\n${summary}\n\nHistory:\n${history.join('\n')}`;
+
+      logToGuard(message, responseText);
+
       return res.json({
-        response: `📬 USPS Tracking Summary:\n${summary}\n\n📜 Tracking History:\n${history.join('\n')}`,
+        response: responseText,
         threadId: threadId || 'N/A'
       });
     }
 
-    // 🧠 OpenAI Assistant fallback
+    /* ===== OPENAI ===== */
     let thread;
     if (threadId && threadId.startsWith('thread_')) {
       thread = await openai.beta.threads.retrieve(threadId);
@@ -197,67 +163,40 @@ app.post('/api/chat', async (req, res) => {
     });
 
     const run = await openai.beta.threads.runs.create(thread.id, {
-      assistant_id: process.env.OPENAI_ASSISTANT_ID
+      assistant_id: OPENAI_ASSISTANT_ID
     });
 
-    let runStatus;
+    let status;
     do {
-      runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
+      status = await openai.beta.threads.runs.retrieve(thread.id, run.id);
       await new Promise(r => setTimeout(r, 500));
-    } while (runStatus.status !== 'completed');
+    } while (status.status !== 'completed');
 
     const messages = await openai.beta.threads.messages.list(thread.id);
-    const rawReply = messages.data[0].content[0].text.value;
+    const reply = messages.data[0].content[0].text.value.trim();
 
-    const cleanReply = rawReply.replace(/\[\d+:\d+[^\]]*?Throwback Products List\.docx\]/g, '').trim();
+    /* 🔥 LOG TO GUARD */
+    logToGuard(message, reply);
 
-
-
-
+    /* 💾 SAVE TO DB */
     await pool.query(
       'INSERT INTO chat_logs (thread_id, user_message, assistant_reply) VALUES ($1, $2, $3)',
-      [thread.id, message, cleanReply]
+      [thread.id, message, reply]
     );
 
-    return res.json({ response: cleanReply, threadId: thread.id });
+    return res.json({
+      response: reply,
+      threadId: thread.id
+    });
 
   } catch (err) {
-    console.error('❌ Error processing chat:', err);
-    return res.status(500).json({ error: 'Something went wrong: ' + err.message });
+    console.error("❌ Error:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-
-
-// Search chat logs
-app.get('/api/chat-logs/search', async (req, res) => {
-  const { q } = req.query;
-  if (!q) return res.status(400).json({ error: 'Missing search query' });
-
-  try {
-    const result = await pool.query(
-      `SELECT * FROM chat_logs WHERE user_message ILIKE $1 OR assistant_reply ILIKE $1 ORDER BY created_at DESC`,
-      [`%${q}%`]
-    );
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Search error:', err);
-    res.status(500).json({ error: 'Query failed' });
-  }
-});
-
-
-// Manual UPS test
-app.get('/api/test-track/:number', async (req, res) => {
-  try {
-    const data = await trackUPS(req.params.number);
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: 'UPS tracking failed: ' + err.message });
-  }
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-
-setInterval(() => console.log("Still alive"), 10000);
+/* =========================
+   🚀 START SERVER
+========================= */
+const PORT = 3000;
+app.listen(PORT, () => console.log(`🚀 Running on port ${PORT}`));
