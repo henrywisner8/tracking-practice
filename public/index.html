@@ -173,8 +173,8 @@ async function sendMessage() {
 
   const bot = botSelector.value;
   const endpoint = bot === 'analytics'
-    ? 'https://tracking-practice-production.up.railway.app/api/client-analytics'
-    : 'https://tracking-practice-production.up.railway.app/api/chat';
+  ? 'https://tracking-practice-production-e9d2.up.railway.app/api/client-analytics'
+  : 'https://tracking-practice-production-e9d2.up.railway.app/api/chat';
 
   const payload = { message: msg };
   if (bot === 'chat') payload.threadId = localStorage.threadId;
