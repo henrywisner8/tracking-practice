@@ -40,7 +40,7 @@ async function logToGuard(prompt, response) {
   try {
     console.log("📊 Sending to Base44:", { prompt, response });
 
-    const res = await fetch(`https://api.base44.com/api/apps/${BASE44_APP_ID}/entities/EvalLog`, {
+    const res = await fetch(`https://app.base44.com/api/apps/${BASE44_APP_ID}/entities/EvalLog`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${BASE44_API_KEY}`,
